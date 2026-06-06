@@ -1,0 +1,8 @@
+# RTX / NVIDIA CUDA extras — install after ml/requirements.txt
+#
+# 1. CUDA PyTorch (pick cu124 or cu121 to match your driver):
+#    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+#
+# 2. GPU-accelerated symptom training:
+-r requirements.txt
+xgboost>=2.1.0

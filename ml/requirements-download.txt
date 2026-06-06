@@ -1,0 +1,6 @@
+kagglehub>=0.3.0
+datasets>=2.18.0
+huggingface_hub>=0.23.0
+datahugger>=0.5.0
+requests>=2.31.0
+pandas>=2.2.0
