@@ -32,10 +32,32 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+
+# secrets
+**/firebase-sa.json
+*firebase-adminsdk*.json
+
+# ML datasets (large downloads — keep small bundled label CSVs)
+ml/data/symptoms/**/*
+!ml/data/symptoms/README.md
+ml/data/prescriptions/images/**
+ml/data/prescriptions/rxhandbd/**
+ml/data/prescriptions/hf_*/**
+ml/data/prescriptions/kaggle_*/**
+ml/data/drugs/**
+ml/data/rag/**
+ml/data/manifest.json
+
+# Manual RxHandBD zips (Mendeley)
+/RxHandBD*.zip
+/RxHandBD*.zip.crdownload

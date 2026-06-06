@@ -1,0 +1,15 @@
+{
+  "fever": [
+    "high_fever",
+    "mild_fever"
+  ],
+  "cough": [
+    "cough"
+  ],
+  "fatigue": [
+    "fatigue"
+  ],
+  "difficulty_breathing": [
+    "breathlessness"
+  ]
+}

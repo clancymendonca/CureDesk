@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "CureDesk",
+    "slug": "curedesk",
+    "version": "1.0.0",
+    "scheme": "curedesk",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow CureDesk to access photos for prescription scans.",
+          "cameraPermission": "Allow CureDesk to use the camera for prescription scans."
+        }
+      ]
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.curedesk.app"
+    },
+    "android": {
+      "package": "com.curedesk.app"
+    }
+  }
+}
