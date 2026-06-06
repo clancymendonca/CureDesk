@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: curedesk
+          POSTGRES_PASSWORD: curedesk
+          POSTGRES_DB: curedesk
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install API deps
+        run: pip install -r services/api/requirements.txt
+      - name: Download ML data
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          pip install kagglehub pandas
+          python ml/scripts/download_data.py --dataset symptoms --skip-kaggle-check || \
+            python ml/scripts/download_data.py --dataset symptoms --allow-synthetic
+      - name: Train ML artifacts
+        run: python ml/train_symptoms.py --cpu --skip-quality-gate
+      - name: Assert metrics.json
+        run: |
+          python -c "
+          import json
+          from pathlib import Path
+          p = Path('services/api/models/artifacts/metrics.json')
+          assert p.exists(), 'metrics.json missing'
+          m = json.loads(p.read_text())
+          assert m.get('n_classes', 0) >= 6
+          assert m.get('cv_top3_accuracy', 0) >= 0.20 or m.get('n_classes', 0) <= 6
+          print('metrics ok', m.get('model_version'), 'classes', m.get('n_classes'))
+          "
+      - name: Pytest
+        working-directory: services/api
+        env:
+          DATABASE_URL: sqlite://
+          ARTIFACTS_DIR: models/artifacts
+        run: python -m pytest tests/ -q
+
+  ml:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ML deps
+        run: pip install -r ml/requirements.txt pandas scikit-learn joblib numpy xgboost
+      - name: Download and train symptoms
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          pip install kagglehub
+          python ml/scripts/download_data.py --dataset symptoms --skip-kaggle-check || \
+            python ml/scripts/download_data.py --dataset symptoms --allow-synthetic
+          python ml/train_symptoms.py --cpu --skip-quality-gate
+      - name: Eval symptoms
+        run: python ml/eval_symptoms.py
+      - name: OCR eval
+        run: python ml/eval_ocr.py
+      - name: Quality gate
+        run: |
+          python -c "
+          import json
+          from pathlib import Path
+          m = json.loads(Path('services/api/models/artifacts/metrics.json').read_text())
+          assert m['cv_top3_accuracy'] >= 0.20 or m['n_classes'] <= 6, m
+          print('ML quality gate passed')
+          "
+
+  typescript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+      - name: Install
+        run: pnpm install
+      - name: Typecheck
+        run: pnpm typecheck

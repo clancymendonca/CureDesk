@@ -1,0 +1,38 @@
+{
+  "name": "curedesk",
+  "private": true,
+  "scripts": {
+    "dev": "turbo dev --filter=@curedesk/web --filter=@curedesk/mobile",
+    "dev:web": "turbo dev --filter=@curedesk/web",
+    "dev:mobile": "turbo dev --filter=@curedesk/mobile",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "generate:types": "openapi-typescript http://127.0.0.1:8000/openapi.json -o packages/shared/src/types.generated.ts",
+    "db:migrate": "cd services/api && alembic upgrade head",
+    "api:dev": "cd services/api && python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+    "ml:train": "python ml/train_symptoms.py",
+    "ml:train:gpu": "python ml/train_symptoms.py --gpu",
+    "ml:train:cpu": "python ml/train_symptoms.py --cpu",
+    "db:seed": "cd services/api && python -m app.scripts.seed",
+    "setup": "powershell -ExecutionPolicy Bypass -File scripts/setup-all.ps1",
+    "setup:db": "powershell -ExecutionPolicy Bypass -File scripts/setup-db.ps1",
+    "setup:firebase": "powershell -ExecutionPolicy Bypass -File scripts/firebase-pull-env.ps1",
+    "setup:ml": "python ml/train_symptoms.py",
+    "setup:ml:gpu": "python ml/train_symptoms.py --gpu",
+    "setup:ml:data": "powershell -ExecutionPolicy Bypass -File scripts/setup-ml-data.ps1",
+    "setup:ml:data:all": "powershell -ExecutionPolicy Bypass -File scripts/setup-ml-data.ps1 -All",
+    "setup:ml:data:large": "powershell -ExecutionPolicy Bypass -File scripts/setup-ml-data.ps1 -All -IncludeLarge",
+    "setup:ml:integrate": "python ml/scripts/prepare_symptoms.py && python ml/train_symptoms.py --format wide --cpu && cd services/api && alembic upgrade head && python -m app.scripts.seed && python ../../ml/scripts/ingest_rag.py",
+    "ml:eval:ocr": "python ml/eval_ocr.py --limit 50",
+    "ml:eval:ocr:rxterms": "python ml/eval_ocr.py --drug-source rxterms --limit 50",
+    "ml:eval:ocr:rxhandbd": "python ml/eval_ocr.py --labels-format rxhandbd --limit 50"
+  },
+  "devDependencies": {
+    "firebase-tools": "^13.29.0",
+    "lodash": "^4.18.1",
+    "openapi-typescript": "^7.4.4",
+    "turbo": "^2.3.3"
+  },
+  "packageManager": "pnpm@9.15.0"
+}

@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: curedesk
+      POSTGRES_PASSWORD: curedesk
+      POSTGRES_DB: curedesk
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  api:
+    build:
+      context: ./services/api
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://curedesk:curedesk@postgres:5432/curedesk
+      CORS_ORIGINS: http://localhost:3000,exp://localhost:8081
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON:-}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      ARTIFACTS_DIR: models/artifacts
+      OCR_USE_GPU: ${OCR_USE_GPU:-auto}
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./services/api:/app
+      - ./services/api/models/artifacts:/app/models/artifacts
+
+volumes:
+  postgres_data:
