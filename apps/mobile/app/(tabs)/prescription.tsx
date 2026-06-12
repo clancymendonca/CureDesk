@@ -9,7 +9,12 @@ import {
   Image,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { MEDICAL_DISCLAIMER, OCR_LOADING_MESSAGE, theme } from "@curedesk/shared";
+import {
+  MEDICAL_DISCLAIMER,
+  OCR_LOADING_MESSAGE,
+  friendlyErrorMessage,
+  theme,
+} from "@curedesk/shared";
 import { api } from "../../lib/api";
 
 export default function PrescriptionScreen() {
@@ -36,19 +41,25 @@ export default function PrescriptionScreen() {
 
     if (result.canceled || !result.assets[0]) return;
 
-    setPreview(result.assets[0].uri);
+    const asset = result.assets[0];
+    setPreview(asset.uri);
     setLoading(true);
     setError(null);
     setOcrText(null);
     setMatches([]);
 
     try {
-      const blob = await fetch(result.assets[0].uri).then((r) => r.blob());
-      const res = await api.scanPrescription(blob);
+      // Use a native FormData file part: fetch(uri).blob() loses the MIME
+      // type on RN, which the server would reject.
+      const res = await api.scanPrescription({
+        uri: asset.uri,
+        name: asset.fileName ?? asset.uri.split("/").pop() ?? "prescription.jpg",
+        type: asset.mimeType ?? "image/jpeg",
+      });
       setOcrText(res.ocr_text);
       setMatches(res.matches);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Scan failed");
+      setError(friendlyErrorMessage(e, "Scan failed. Please try again."));
     } finally {
       setLoading(false);
     }
@@ -83,8 +94,8 @@ export default function PrescriptionScreen() {
           {matches.length > 0 && (
             <>
               <Text style={styles.resultsTitle}>Drug matches</Text>
-              {matches.map((m) => (
-                <Text key={m.brand} style={styles.matchItem}>
+              {matches.map((m, i) => (
+                <Text key={`${m.brand}-${m.generic}-${i}`} style={styles.matchItem}>
                   {m.brand} → {m.generic} ({(m.confidence * 100).toFixed(0)}%)
                 </Text>
               ))}

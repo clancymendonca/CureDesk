@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MEDICAL_DISCLAIMER, OCR_LOADING_MESSAGE } from "@curedesk/shared";
+import { MEDICAL_DISCLAIMER, OCR_LOADING_MESSAGE, friendlyErrorMessage } from "@curedesk/shared";
 import { api } from "@/lib/api";
 import PageLayout from "@/components/PageLayout";
 
@@ -23,7 +23,7 @@ export default function PrescriptionPage() {
       setOcrText(res.ocr_text);
       setMatches(res.matches);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Scan failed");
+      setError(friendlyErrorMessage(err, "Scan failed. Please try again."));
     } finally {
       setLoading(false);
     }
@@ -36,7 +36,7 @@ export default function PrescriptionPage() {
           <label className="startup-form_label">Upload prescription image</label>
           <input
             type="file"
-            accept="image/jpeg,image/png"
+            accept="image/jpeg,image/jpg,image/png"
             onChange={onFile}
             disabled={loading}
             className="startup-form_input w-full"
@@ -61,8 +61,8 @@ export default function PrescriptionPage() {
               <div>
                 <h2 className="page-card-title !mt-6">Drug matches</h2>
                 <ul className="space-y-2">
-                  {matches.map((m) => (
-                    <li key={m.brand} className="text-16-medium">
+                  {matches.map((m, i) => (
+                    <li key={`${m.brand}-${m.generic}-${i}`} className="text-16-medium">
                       {m.brand} → {m.generic} ({(m.confidence * 100).toFixed(0)}%)
                     </li>
                   ))}

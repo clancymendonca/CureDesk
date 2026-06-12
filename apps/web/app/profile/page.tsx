@@ -3,25 +3,35 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { friendlyErrorMessage, HistoryItem } from "@curedesk/shared";
 import PageLayout from "@/components/PageLayout";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
+import { formatDate } from "@/lib/utils";
 
 export default function ProfilePage() {
-  const user = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
-  const [history, setHistory] = useState<{ summary: string; created_at: string }[]>([]);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(true);
 
   useEffect(() => {
-    if (user === null) return;
+    if (loading) return;
     if (!user) {
       router.push("/login");
       return;
     }
-    api.profileHistory().then((r) => setHistory(r.items)).catch(() => setHistory([]));
-  }, [user, router]);
+    setHistoryLoading(true);
+    setHistoryError(null);
+    api
+      .profileHistory()
+      .then((r) => setHistory(r.items))
+      .catch((err) => setHistoryError(friendlyErrorMessage(err)))
+      .finally(() => setHistoryLoading(false));
+  }, [user, loading, router]);
 
-  if (!user) return null;
+  if (loading || !user) return null;
 
   return (
     <PageLayout
@@ -39,15 +49,23 @@ export default function ProfilePage() {
 
         <div className="page-card">
           <h2 className="page-card-title">Recent activity</h2>
-          {history.length === 0 ? (
+          {historyLoading ? (
+            <p className="no-result">Loading…</p>
+          ) : historyError ? (
+            <p className="no-result text-red-600">{historyError}</p>
+          ) : history.length === 0 ? (
             <p className="no-result">No history yet</p>
           ) : (
             <ul className="space-y-3">
-              {history.map((h, i) => (
+              {history.map((h) => (
                 <li
-                  key={i}
+                  key={h.id}
                   className="text-sm text-black-100 border-b-[2px] border-black/10 pb-3 last:border-0 last:pb-0"
                 >
+                  <span className="block text-xs uppercase tracking-wide text-black/50">
+                    {h.type === "symptom" ? "Symptom check" : "Prescription scan"} ·{" "}
+                    {formatDate(h.created_at)}
+                  </span>
                   {h.summary}
                 </li>
               ))}

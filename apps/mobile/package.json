@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "expo start",
     "build": "echo \"Use EAS build for production\"",
-    "lint": "echo ok",
+    "lint": "eslint . --ext .ts,.tsx",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -29,6 +29,8 @@
   },
   "devDependencies": {
     "@types/react": "~18.3.12",
+    "eslint": "^8.57.1",
+    "eslint-config-expo": "~8.0.1",
     "typescript": "^5.7.2"
   }
 }

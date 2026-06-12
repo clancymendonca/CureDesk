@@ -219,7 +219,7 @@ export interface components {
         /** HistoryItem */
         HistoryItem: {
             /** Id */
-            id: number;
+            id: string;
             /**
              * Type
              * @enum {string}

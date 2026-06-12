@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import LegalPageLayout, { type LegalSection } from "@/components/LegalPageLayout";
 
 export const metadata: Metadata = {
@@ -205,9 +206,9 @@ const sections: LegalSection[] = [
         </p>
         <p>
           For terms of use, see our{" "}
-          <a href="/terms" className="text-primary font-medium hover:underline">
+          <Link href="/terms" className="text-primary font-medium hover:underline">
             Terms of Service
-          </a>
+          </Link>
           .
         </p>
       </>

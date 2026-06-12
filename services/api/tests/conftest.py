@@ -9,6 +9,7 @@ from sqlalchemy.pool import StaticPool
 
 os.environ.setdefault("DATABASE_URL", "sqlite://")
 os.environ.setdefault("ARTIFACTS_DIR", "models/artifacts")
+os.environ.setdefault("WARMUP_ENABLED", "false")
 
 from app.db.models import Base, get_db
 from app.main import create_app

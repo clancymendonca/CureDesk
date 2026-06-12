@@ -12,13 +12,15 @@ router = APIRouter(prefix="/v1/diseases", tags=["diseases"])
 @router.get("", response_model=DiseaseListResponse)
 def list_diseases(
     q: Optional[str] = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
     query = db.query(Disease)
     if q:
         query = query.filter(Disease.name.ilike(f"%{q}%"))
     total = query.count()
-    items = query.order_by(Disease.name).limit(50).all()
+    items = query.order_by(Disease.name).offset(offset).limit(limit).all()
     return DiseaseListResponse(items=items, total=total)
 
 

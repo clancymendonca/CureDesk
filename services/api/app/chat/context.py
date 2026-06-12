@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import re
-from typing import Optional
 
 from sqlalchemy.orm import Session
 
+from app.chat import embeddings
 from app.db.models import Disease, Drug, KnowledgeChunk
+
+logger = logging.getLogger(__name__)
 
 CRISIS_PATTERNS = [
     r"\bchest pain\b",
@@ -49,7 +52,16 @@ def _extract_terms(message: str) -> list[str]:
     return [w for w in words if w not in stop][:12]
 
 
-def _search_knowledge_chunks(db: Session, terms: list[str]) -> list[KnowledgeChunk]:
+def _search_knowledge_chunks(db: Session, message: str, terms: list[str]) -> list[KnowledgeChunk]:
+    """Semantic search when embeddings are available, keyword ILIKE otherwise."""
+    try:
+        semantic_hits = embeddings.search_chunks(db, message, k=5)
+    except Exception as exc:
+        logger.warning("Semantic chunk search failed, using keyword fallback: %s", exc)
+        semantic_hits = []
+    if semantic_hits:
+        return semantic_hits
+
     hits: list[KnowledgeChunk] = []
     for term in terms:
         for chunk in (
@@ -74,7 +86,7 @@ def build_db_context(db: Session, message: str) -> str:
 
     disease_hits: list[Disease] = []
     drug_hits: list[Drug] = []
-    qa_hits = _search_knowledge_chunks(db, terms)
+    qa_hits = _search_knowledge_chunks(db, message, terms)
 
     for term in terms:
         for d in db.query(Disease).filter(Disease.name.ilike(f"%{term}%")).limit(3):
@@ -110,3 +122,46 @@ def build_system_prompt(db: Session, message: str, base_prompt: str) -> str:
     if ctx:
         return f"{base_prompt}\n\n{ctx}"
     return base_prompt
+
+
+OFFLINE_PREFIX = (
+    "The chat assistant is currently offline, but here is related information "
+    "from the CureDesk knowledge base:"
+)
+
+OFFLINE_SUFFIX = (
+    "This is educational information only, not medical advice. "
+    "Please consult a qualified healthcare professional."
+)
+
+OFFLINE_EMPTY_REPLY = (
+    "The chat assistant is currently offline and I couldn't find related "
+    "information in the CureDesk knowledge base. Please try again later, or "
+    "consult a qualified healthcare professional for medical questions."
+)
+
+
+def build_offline_reply(db: Session, message: str) -> str:
+    """Grounded reply assembled directly from the knowledge base when no LLM is configured."""
+    terms = _extract_terms(message)
+    qa_hits = _search_knowledge_chunks(db, message, terms) if terms else []
+    disease_hits: list[Disease] = []
+    for term in terms:
+        for d in db.query(Disease).filter(Disease.name.ilike(f"%{term}%")).limit(2):
+            if d not in disease_hits:
+                disease_hits.append(d)
+
+    parts: list[str] = []
+    for d in disease_hits[:2]:
+        if d.description:
+            parts.append(f"{d.name}: {d.description}")
+    for chunk in qa_hits[:2]:
+        answer = chunk.answer.replace("\n", " ").strip()
+        if len(answer) > 600:
+            answer = answer[:600] + "..."
+        parts.append(f"{chunk.question}\n{answer}")
+
+    if not parts:
+        return OFFLINE_EMPTY_REPLY
+    body = "\n\n".join(parts)
+    return f"{OFFLINE_PREFIX}\n\n{body}\n\n{OFFLINE_SUFFIX}"

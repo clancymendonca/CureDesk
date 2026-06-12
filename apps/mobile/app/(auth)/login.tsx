@@ -25,7 +25,8 @@ export default function LoginScreen() {
   const [request, response, promptGoogle] = useGoogleAuthRequest();
 
   useEffect(() => {
-    if (response?.type === "success") {
+    if (!response) return;
+    if (response.type === "success") {
       const idToken = response.authentication?.idToken;
       if (idToken) {
         setLoading(true);
@@ -33,7 +34,13 @@ export default function LoginScreen() {
           .then(() => router.back())
           .catch((e) => setError(e instanceof Error ? e.message : "Google sign-in failed"))
           .finally(() => setLoading(false));
+      } else {
+        setError("Google sign-in did not return a token. Please try again.");
       }
+    } else if (response.type === "error") {
+      setError(response.error?.message ?? "Google sign-in failed. Please try again.");
+    } else if (response.type === "cancel" || response.type === "dismiss") {
+      setError(null);
     }
   }, [response]);
 

@@ -1,6 +1,6 @@
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ErrorDetail(BaseModel):
@@ -25,6 +25,18 @@ class SymptomRequest(BaseModel):
         default=None,
         description="Extended wide-model symptom flags (132 features)",
     )
+
+    @field_validator("symptoms")
+    @classmethod
+    def _limit_symptoms(cls, v: Optional[dict[str, bool]]) -> Optional[dict[str, bool]]:
+        if v is None:
+            return v
+        if len(v) > 256:
+            raise ValueError("too many symptom flags (max 256)")
+        for key in v:
+            if len(key) > 64:
+                raise ValueError("symptom flag name too long (max 64 chars)")
+        return v
 
 
 class SymptomFeaturesResponse(BaseModel):
@@ -73,12 +85,12 @@ class PrescriptionScanResponse(BaseModel):
 
 class ChatMessage(BaseModel):
     role: Literal["user", "assistant"]
-    content: str
+    content: str = Field(max_length=4000)
 
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
-    history: list[ChatMessage] = Field(default_factory=list)
+    history: list[ChatMessage] = Field(default_factory=list, max_length=20)
 
 
 class ChatResponse(BaseModel):
@@ -86,7 +98,7 @@ class ChatResponse(BaseModel):
 
 
 class HistoryItem(BaseModel):
-    id: int
+    id: str
     type: Literal["symptom", "prescription"]
     created_at: str
     summary: str

@@ -14,5 +14,8 @@ def run_migrations() -> None:
     cfg = Config(str(api_root / "alembic.ini"))
     try:
         command.upgrade(cfg, "head")
-    except Exception as exc:
-        logger.warning("Alembic migration skipped: %s", exc)
+    except Exception:
+        # Starting with a stale/missing schema leads to confusing runtime
+        # failures, so fail fast instead of limping along.
+        logger.exception("Alembic migration failed; refusing to start with a stale schema")
+        raise

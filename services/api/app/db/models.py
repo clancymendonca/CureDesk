@@ -1,13 +1,29 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text, create_engine
+from sqlalchemy import (
+    JSON,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    LargeBinary,
+    String,
+    Text,
+    create_engine,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
 from app.config import settings
 
 engine = create_engine(settings.database_url, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def _utcnow() -> datetime:
+    """Timezone-aware replacement for the deprecated datetime.utcnow."""
+    return datetime.now(timezone.utc)
 
 
 class Base(DeclarativeBase):
@@ -22,7 +38,7 @@ class User(Base):
     email: Mapped[Optional[str]] = mapped_column(String(255))
     display_name: Mapped[Optional[str]] = mapped_column(String(255))
     photo_url: Mapped[Optional[str]] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
 
     symptom_submissions: Mapped[list["SymptomSubmission"]] = relationship(back_populates="user")
     prescription_scans: Mapped[list["PrescriptionScan"]] = relationship(back_populates="user")
@@ -72,30 +88,38 @@ class KnowledgeChunk(Base):
     source: Mapped[str] = mapped_column(String(64), index=True)
     question: Mapped[str] = mapped_column(Text, index=True)
     answer: Mapped[str] = mapped_column(Text)
+    embedding: Mapped[Optional[bytes]] = mapped_column(LargeBinary)
+    embedding_model: Mapped[Optional[str]] = mapped_column(String(128))
 
 
 class SymptomSubmission(Base):
     __tablename__ = "symptom_submissions"
+    __table_args__ = (
+        Index("ix_symptom_submissions_user_created", "user_id", "created_at"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
     inputs: Mapped[dict] = mapped_column(JSON)
     predictions: Mapped[dict] = mapped_column(JSON)
     model_version: Mapped[str] = mapped_column(String(64))
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
 
     user: Mapped[Optional["User"]] = relationship(back_populates="symptom_submissions")
 
 
 class PrescriptionScan(Base):
     __tablename__ = "prescription_scans"
+    __table_args__ = (
+        Index("ix_prescription_scans_user_created", "user_id", "created_at"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
     ocr_text: Mapped[str] = mapped_column(Text)
     matched_drug_id: Mapped[Optional[int]] = mapped_column(ForeignKey("drugs.id"))
     confidence: Mapped[Optional[float]] = mapped_column(Float)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
 
     user: Mapped[Optional["User"]] = relationship(back_populates="prescription_scans")
 

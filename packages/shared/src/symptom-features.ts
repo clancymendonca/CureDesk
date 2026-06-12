@@ -145,13 +145,21 @@ export const LEGACY_WIDE_SYMPTOMS = new Set([
   "breathlessness",
 ]);
 
-export function formatSymptomLabel(key: string): string {
+/**
+ * Human-readable label for a raw model feature key.
+ * Handles dataset quirks like "spotting_ urination", "fluid_overload.1",
+ * and "toxic_look_(typhos)".
+ */
+export function humanizeSymptom(key: string): string {
   return key
+    .replace(/\.\d+$/, "")
     .replace(/_/g, " ")
     .replace(/\s+/g, " ")
     .trim()
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
+
+export const formatSymptomLabel = humanizeSymptom;
 
 export function buildSymptomsPayload(
   advanced: Record<string, boolean>
@@ -163,11 +171,21 @@ export function buildSymptomsPayload(
   return Object.keys(out).length ? out : undefined;
 }
 
-export function advancedSymptomFeatures(search = ""): string[] {
+/**
+ * Filter a feature list down to what the advanced panel should show.
+ * Accepts an optional server-provided feature list (from
+ * GET /v1/symptoms/features); falls back to the bundled SYMPTOM_FEATURES.
+ * Hides legacy-toggle duplicates and ".N" duplicate dataset columns.
+ */
+export function advancedSymptomFeatures(
+  search = "",
+  features: readonly string[] = SYMPTOM_FEATURES
+): string[] {
   const q = search.trim().toLowerCase();
-  return SYMPTOM_FEATURES.filter((key) => {
+  return features.filter((key) => {
     if (LEGACY_WIDE_SYMPTOMS.has(key)) return false;
+    if (/\.\d+$/.test(key)) return false;
     if (!q) return true;
-    return key.includes(q) || formatSymptomLabel(key).toLowerCase().includes(q);
+    return key.includes(q) || humanizeSymptom(key).toLowerCase().includes(q);
   });
 }

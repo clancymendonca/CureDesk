@@ -1,7 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { advancedSymptomFeatures, formatSymptomLabel } from "@curedesk/shared";
+import { useEffect, useState } from "react";
+import {
+  SYMPTOM_FEATURES,
+  advancedSymptomFeatures,
+  humanizeSymptom,
+} from "@curedesk/shared";
+import { api } from "@/lib/api";
 
 type Props = {
   values: Record<string, boolean>;
@@ -11,8 +16,24 @@ type Props = {
 export function AdvancedSymptomsPanel({ values, onChange }: Props) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [allFeatures, setAllFeatures] = useState<readonly string[]>(SYMPTOM_FEATURES);
 
-  const features = advancedSymptomFeatures(search);
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getSymptomFeatures()
+      .then((r) => {
+        if (!cancelled && r.features.length) setAllFeatures(r.features);
+      })
+      .catch(() => {
+        /* keep bundled fallback list */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const features = advancedSymptomFeatures(search, allFeatures);
   const selectedCount = Object.values(values).filter(Boolean).length;
 
   function toggle(key: string, checked: boolean) {
@@ -47,7 +68,7 @@ export function AdvancedSymptomsPanel({ values, onChange }: Props) {
                   checked={!!values[key]}
                   onChange={(e) => toggle(key, e.target.checked)}
                 />
-                <span>{formatSymptomLabel(key)}</span>
+                <span>{humanizeSymptom(key)}</span>
               </label>
             ))}
           </div>

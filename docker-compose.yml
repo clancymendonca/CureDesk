@@ -17,12 +17,14 @@ services:
 
   api:
     build:
-      context: ./services/api
+      context: .
+      dockerfile: services/api/Dockerfile
     ports:
       - "8000:8000"
     environment:
       DATABASE_URL: postgresql://curedesk:curedesk@postgres:5432/curedesk
       CORS_ORIGINS: http://localhost:3000,exp://localhost:8081
+      RATE_LIMIT_STORAGE_URI: redis://redis:6379
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
@@ -33,6 +35,7 @@ services:
       - redis
     volumes:
       - ./services/api:/app
+      - ./ml:/app/ml
       - ./services/api/models/artifacts:/app/models/artifacts
 
 volumes:

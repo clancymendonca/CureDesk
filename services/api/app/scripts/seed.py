@@ -1,6 +1,7 @@
 """Seed database from symptom CSV and prescription label CSVs."""
 
 import csv
+import json
 import sys
 from pathlib import Path
 
@@ -90,6 +91,54 @@ def seed_diseases_from_csv(csv_path: Path, db, *, include_profiles: bool = True)
 
     db.commit()
     print(f"Seeded {len(disease_stats)} diseases from {csv_path}")
+
+
+def seed_diseases_from_model_classes(db) -> None:
+    """Ensure every class the ML model can predict has a Disease row.
+
+    Prediction slugs are derived from the raw class names in
+    disease_classes.json, so seeding from the same file guarantees that
+    /disease/[slug] links from predictions never 404.
+    """
+    classes_path = ROOT / "services" / "api" / "models" / "artifacts" / "disease_classes.json"
+    if not classes_path.exists():
+        print(f"disease_classes.json not found at {classes_path}, skipping model-class seed")
+        return
+    classes = json.loads(classes_path.read_text(encoding="utf-8"))
+    added = 0
+    realigned = 0
+    for raw_name in classes:
+        raw_name = str(raw_name)
+        # Slug must match ml.symptoms._slugify(raw_name) exactly.
+        slug = slugify(raw_name)
+        display_name = " ".join(raw_name.split())
+        if not display_name:
+            continue
+        disease = db.query(Disease).filter(Disease.slug == slug).first()
+        if disease:
+            continue
+        disease = (
+            db.query(Disease).filter(Disease.name == raw_name).first()
+            or db.query(Disease).filter(Disease.name == display_name).first()
+        )
+        if disease:
+            disease.slug = slug
+            realigned += 1
+        else:
+            db.add(
+                Disease(
+                    slug=slug,
+                    name=display_name,
+                    description=(
+                        f"Educational information about {display_name}. Not a medical diagnosis."
+                    ),
+                    common_symptoms={},
+                )
+            )
+            added += 1
+        db.flush()
+    db.commit()
+    print(f"Model classes: {added} new diseases, {realigned} slugs realigned ({len(classes)} classes)")
 
 
 def seed_diseases_from_itachi(db) -> None:
@@ -219,6 +268,7 @@ def main() -> None:
             rx_dir / "validation_labels.csv",
         ]
         seed_diseases_from_csv(symptom_csv, db)
+        seed_diseases_from_model_classes(db)
         seed_diseases_from_itachi(db)
         seed_drugs_from_csvs(drug_csvs, db)
         seed_drugs_from_rxterms(db)
