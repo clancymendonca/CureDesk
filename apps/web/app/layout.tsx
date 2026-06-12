@@ -9,7 +9,11 @@ const workSans = Work_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "CureDesk",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+  title: {
+    default: "CureDesk",
+    template: "%s | CureDesk",
+  },
   description:
     "CureDesk is a digital healthcare platform for symptom analysis, prescription scanning, and AI-assisted health guidance.",
   icons: {

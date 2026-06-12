@@ -15,6 +15,12 @@ export type ChatResponse = components["schemas"]["ChatResponse"];
 export type HistoryItem = components["schemas"]["HistoryItem"];
 export type ProfileHistoryResponse = components["schemas"]["ProfileHistoryResponse"];
 
+export interface SymptomFeaturesResponse {
+  features: string[];
+  model_version: string;
+  feature_format: string;
+}
+
 export interface ApiErrorBody {
   error: {
     code: string;

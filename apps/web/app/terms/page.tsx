@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { MEDICAL_DISCLAIMER } from "@curedesk/shared";
 import LegalPageLayout, { type LegalSection } from "@/components/LegalPageLayout";
 
@@ -194,9 +195,9 @@ const sections: LegalSection[] = [
         </p>
         <p>
           For privacy-related requests, please see our{" "}
-          <a href="/privacy" className="text-primary font-medium hover:underline">
+          <Link href="/privacy" className="text-primary font-medium hover:underline">
             Privacy Policy
-          </a>
+          </Link>
           .
         </p>
       </>

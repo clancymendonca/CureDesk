@@ -2,7 +2,12 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { MEDICAL_DISCLAIMER, DiseaseSummary, buildSymptomsPayload } from "@curedesk/shared";
+import {
+  MEDICAL_DISCLAIMER,
+  DiseaseSummary,
+  buildSymptomsPayload,
+  friendlyErrorMessage,
+} from "@curedesk/shared";
 import { api } from "@/lib/api";
 import PageLayout from "@/components/PageLayout";
 import { AdvancedSymptomsPanel } from "@/components/AdvancedSymptomsPanel";
@@ -24,10 +29,20 @@ export default function SymptomAnalysisPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [diseases, setDiseases] = useState<DiseaseSummary[]>([]);
+  const [diseasesError, setDiseasesError] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => {
-      api.listDiseases(search || undefined).then((r) => setDiseases(r.items)).catch(() => setDiseases([]));
+      api
+        .listDiseases(search || undefined)
+        .then((r) => {
+          setDiseases(r.items);
+          setDiseasesError(null);
+        })
+        .catch((err) => {
+          setDiseases([]);
+          setDiseasesError(friendlyErrorMessage(err, "Couldn't load diseases."));
+        });
     }, 300);
     return () => clearTimeout(t);
   }, [search]);
@@ -51,7 +66,7 @@ export default function SymptomAnalysisPage() {
       setResults(res.predictions);
       setConfidenceLevel(res.confidence_level);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Prediction failed");
+      setError(friendlyErrorMessage(err, "Prediction failed. Please try again."));
     } finally {
       setLoading(false);
     }
@@ -98,6 +113,31 @@ export default function SymptomAnalysisPage() {
             >
               <option value="female">Female</option>
               <option value="male">Male</option>
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="startup-form_label">Blood Pressure</span>
+            <select
+              className="startup-form_input w-full"
+              value={bloodPressure}
+              onChange={(e) => setBloodPressure(e.target.value as "normal" | "high" | "low")}
+            >
+              <option value="normal">Normal</option>
+              <option value="high">High</option>
+              <option value="low">Low</option>
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="startup-form_label">Cholesterol Level</span>
+            <select
+              className="startup-form_input w-full"
+              value={cholesterol}
+              onChange={(e) => setCholesterol(e.target.value as "normal" | "high")}
+            >
+              <option value="normal">Normal</option>
+              <option value="high">High</option>
             </select>
           </label>
 
@@ -148,7 +188,9 @@ export default function SymptomAnalysisPage() {
             />
           </div>
           <ul className="card_grid">
-            {diseases.length === 0 ? (
+            {diseasesError ? (
+              <p className="no-result text-red-600">{diseasesError}</p>
+            ) : diseases.length === 0 ? (
               <p className="no-result">No diseases found</p>
             ) : (
               diseases.map((d) => (

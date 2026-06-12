@@ -1,9 +1,9 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header
 from sqlalchemy.orm import Session
 
-from app.auth.firebase import verify_token_optional
+from app.auth.firebase import verify_token_required
 from app.db.models import PrescriptionScan, SymptomSubmission, get_db
 from app.schemas import HistoryItem, ProfileHistoryResponse
 
@@ -15,12 +15,7 @@ def profile_history(
     db: Session = Depends(get_db),
     authorization: Optional[str] = Header(default=None),
 ):
-    user = verify_token_optional(db, authorization)
-    if not user:
-        raise HTTPException(
-            status_code=401,
-            detail={"error": {"code": "UNAUTHORIZED", "message": "Sign in required"}},
-        )
+    user = verify_token_required(db, authorization)
 
     items: list[HistoryItem] = []
 
@@ -35,7 +30,7 @@ def profile_history(
         top = preds[0]["disease"] if preds else "Unknown"
         items.append(
             HistoryItem(
-                id=s.id,
+                id=f"symptom:{s.id}",
                 type="symptom",
                 created_at=s.created_at.isoformat(),
                 summary=f"Symptom check — top: {top}",
@@ -49,12 +44,13 @@ def profile_history(
         .limit(20)
         .all()
     ):
+        text = p.ocr_text[:60] + ("..." if len(p.ocr_text) > 60 else "")
         items.append(
             HistoryItem(
-                id=p.id,
+                id=f"prescription:{p.id}",
                 type="prescription",
                 created_at=p.created_at.isoformat(),
-                summary=f"Prescription scan — {p.ocr_text[:60]}...",
+                summary=f"Prescription scan — {text}",
             )
         )
 

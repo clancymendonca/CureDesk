@@ -8,11 +8,21 @@ import {
   DiseaseSummary,
   PrescriptionScanResponse,
   ProfileHistoryResponse,
+  SymptomFeaturesResponse,
   SymptomPredictResponse,
   SymptomRequest,
 } from "./types";
 
 export type TokenProvider = () => Promise<string | null>;
+
+/** React Native FormData file descriptor ({ uri, name, type }). */
+export interface NativeFilePart {
+  uri: string;
+  name: string;
+  type: string;
+}
+
+export type UploadFile = Blob | File | NativeFilePart;
 
 export class CureDeskApiClient {
   constructor(
@@ -30,14 +40,27 @@ export class CureDeskApiClient {
 
   private async handle<T>(res: Response): Promise<T> {
     if (!res.ok) {
-      let body: ApiErrorBody | null = null;
+      let body: unknown = null;
       try {
-        body = (await res.json()) as ApiErrorBody;
+        body = await res.json();
       } catch {
         /* ignore */
       }
-      if (body?.error) {
-        throw new ApiClientError(body.error.code, body.error.message, res.status);
+      // FastAPI wraps custom error payloads in "detail"; unwrap both shapes.
+      const raw = body as
+        | { error?: unknown; detail?: { error?: unknown } | string }
+        | null;
+      const err =
+        raw?.error ??
+        (typeof raw?.detail === "object" ? raw?.detail?.error : raw?.detail);
+      if (err && typeof err === "object") {
+        const e = err as ApiErrorBody["error"];
+        throw new ApiClientError(e.code ?? "UNKNOWN", e.message ?? res.statusText, res.status);
+      }
+      if (typeof err === "string") {
+        // e.g. slowapi rate-limit responses use a plain string error body
+        const code = res.status === 429 ? "RATE_LIMITED" : "UNKNOWN";
+        throw new ApiClientError(code, err, res.status);
       }
       throw new ApiClientError("UNKNOWN", res.statusText, res.status);
     }
@@ -52,6 +75,11 @@ export class CureDeskApiClient {
   async ready() {
     const res = await fetch(`${this.baseUrl}${API_PATHS.ready}`);
     return this.handle<{ status: string; db: boolean; ml: boolean }>(res);
+  }
+
+  async getSymptomFeatures() {
+    const res = await fetch(`${this.baseUrl}${API_PATHS.symptomFeatures}`);
+    return this.handle<SymptomFeaturesResponse>(res);
   }
 
   async predictSymptoms(data: SymptomRequest) {
@@ -75,9 +103,10 @@ export class CureDeskApiClient {
     return this.handle<DiseaseSummary>(res);
   }
 
-  async scanPrescription(file: Blob | File) {
+  async scanPrescription(file: UploadFile) {
     const form = new FormData();
-    form.append("file", file);
+    // React Native accepts { uri, name, type } descriptors; browsers take Blob/File.
+    form.append("file", file as Blob);
     const res = await fetch(`${this.baseUrl}${API_PATHS.scanPrescription}`, {
       method: "POST",
       headers: await this.headers(),

@@ -1,25 +1,48 @@
 import { useEffect, useState } from "react";
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from "react-native";
 import { Link } from "expo-router";
-import { theme } from "@curedesk/shared";
+import { friendlyErrorMessage, theme, type HistoryItem } from "@curedesk/shared";
 import { useAuth } from "../../lib/auth-context";
 import { signOut } from "../../lib/firebase";
 import { api } from "../../lib/api";
 
 export default function ProfileScreen() {
-  const user = useAuth();
-  const [history, setHistory] = useState<{ summary: string; created_at: string }[]>([]);
+  const { user, loading: authLoading } = useAuth();
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
     setLoading(true);
+    setHistoryError(null);
     api
       .profileHistory()
       .then((res) => setHistory(res.items))
-      .catch(() => setHistory([]))
+      .catch((e) => {
+        setHistory([]);
+        setHistoryError(friendlyErrorMessage(e, "Couldn't load your history."));
+      })
       .finally(() => setLoading(false));
   }, [user]);
+
+  async function handleSignOut() {
+    try {
+      setSignOutError(null);
+      await signOut();
+    } catch {
+      setSignOutError("Sign out failed. Please try again.");
+    }
+  }
+
+  if (authLoading) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <ActivityIndicator color={theme.primary} />
+      </View>
+    );
+  }
 
   if (!user) {
     return (
@@ -45,18 +68,21 @@ export default function ProfileScreen() {
       <Text style={styles.title}>{user.displayName ?? user.email}</Text>
       <Text style={styles.email}>{user.email}</Text>
 
-      <Pressable style={styles.buttonOutline} onPress={() => signOut()}>
+      <Pressable style={styles.buttonOutline} onPress={handleSignOut}>
         <Text style={styles.buttonOutlineText}>Sign Out</Text>
       </Pressable>
+      {signOutError && <Text style={styles.error}>{signOutError}</Text>}
 
       <Text style={styles.sectionTitle}>Recent activity</Text>
       {loading ? (
         <ActivityIndicator color={theme.primary} />
+      ) : historyError ? (
+        <Text style={styles.error}>{historyError}</Text>
       ) : history.length === 0 ? (
         <Text style={styles.empty}>No history yet</Text>
       ) : (
-        history.map((h, i) => (
-          <Text key={i} style={styles.historyItem}>
+        history.map((h) => (
+          <Text key={h.id} style={styles.historyItem}>
             {h.summary}
           </Text>
         ))
@@ -74,6 +100,8 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 24, backgroundColor: theme.background },
+  centered: { justifyContent: "center", alignItems: "center" },
+  error: { color: theme.error, marginBottom: 12 },
   title: { fontSize: 22, fontWeight: "700", color: theme.text },
   email: { color: theme.textMuted, marginBottom: 24 },
   button: {

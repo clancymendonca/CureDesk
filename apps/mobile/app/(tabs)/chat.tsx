@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   View,
   Text,
@@ -7,14 +7,19 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
-import { MEDICAL_DISCLAIMER, theme } from "@curedesk/shared";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { MEDICAL_DISCLAIMER, friendlyErrorMessage, theme } from "@curedesk/shared";
 import { api } from "../../lib/api";
 
 export default function ChatScreen() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [loading, setLoading] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const insets = useSafeAreaInsets();
 
   async function send() {
     if (!input.trim() || loading) return;
@@ -26,17 +31,32 @@ export default function ChatScreen() {
     try {
       const res = await api.chat({ message: userMsg, history: messages });
       setMessages([...history, { role: "assistant", content: res.reply }]);
-    } catch {
-      setMessages([...history, { role: "assistant", content: "Sorry, chat is unavailable right now." }]);
+    } catch (e) {
+      setMessages([
+        ...history,
+        {
+          role: "assistant",
+          content: friendlyErrorMessage(e, "Sorry, chat is unavailable right now."),
+        },
+      ]);
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={insets.top}
+    >
       <Text style={styles.disclaimer}>{MEDICAL_DISCLAIMER}</Text>
-      <ScrollView style={styles.messages} contentContainerStyle={styles.messagesContent}>
+      <ScrollView
+        ref={scrollRef}
+        style={styles.messages}
+        contentContainerStyle={styles.messagesContent}
+        onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+      >
         {messages.map((m, i) => (
           <View
             key={i}
@@ -47,7 +67,7 @@ export default function ChatScreen() {
         ))}
         {loading && <ActivityIndicator style={{ marginTop: 8 }} color={theme.primary} />}
       </ScrollView>
-      <View style={styles.inputRow}>
+      <View style={[styles.inputRow, { paddingBottom: Math.max(insets.bottom, 12) }]}>
         <TextInput
           style={styles.input}
           value={input}
@@ -59,7 +79,7 @@ export default function ChatScreen() {
           <Text style={styles.sendText}>Send</Text>
         </Pressable>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     groq_model: str = "llama-3.3-70b-versatile"
     cors_origins: str = "http://localhost:3000,exp://localhost:8081"
+    # e.g. redis://localhost:6379 — empty means in-process memory (single worker only)
+    rate_limit_storage_uri: str = ""
     firebase_service_account_json: str = ""
     sentry_dsn: str = ""
     artifacts_dir: str = "models/artifacts"
@@ -15,6 +17,10 @@ class Settings(BaseSettings):
     ocr_timeout_seconds: int = 30
     ocr_use_gpu: str = "auto"  # auto | true | false
     ocr_engine: str = "easyocr"  # easyocr | paddle | ensemble
+    # Pre-load heavy models (OCR reader, embedding model) in a background
+    # thread at startup so the first request doesn't pay the cold-start cost.
+    warmup_enabled: bool = True
+    embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
 
     @property
     def ocr_gpu_enabled(self) -> bool:

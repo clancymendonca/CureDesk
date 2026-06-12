@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -9,7 +9,16 @@ import {
   ScrollView,
   ActivityIndicator,
 } from "react-native";
-import { MEDICAL_DISCLAIMER, theme, DiseaseSummary, advancedSymptomFeatures, buildSymptomsPayload, formatSymptomLabel } from "@curedesk/shared";
+import {
+  MEDICAL_DISCLAIMER,
+  SYMPTOM_FEATURES,
+  theme,
+  DiseaseSummary,
+  advancedSymptomFeatures,
+  buildSymptomsPayload,
+  friendlyErrorMessage,
+  humanizeSymptom,
+} from "@curedesk/shared";
 import { api } from "../../lib/api";
 import { Link } from "expo-router";
 
@@ -31,13 +40,40 @@ export default function SymptomsScreen() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [symptomSearch, setSymptomSearch] = useState("");
   const [diseases, setDiseases] = useState<DiseaseSummary[]>([]);
+  const [allFeatures, setAllFeatures] = useState<readonly string[]>(SYMPTOM_FEATURES);
 
-  const filteredAdvanced = advancedSymptomFeatures(symptomSearch);
+  const filteredAdvanced = advancedSymptomFeatures(symptomSearch, allFeatures);
   const advancedCount = Object.values(advancedSymptoms).filter(Boolean).length;
 
   useEffect(() => {
+    let cancelled = false;
+    api
+      .getSymptomFeatures()
+      .then((r) => {
+        if (!cancelled && r.features.length) setAllFeatures(r.features);
+      })
+      .catch(() => {
+        /* keep bundled fallback list */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const searchSeq = useRef(0);
+
+  useEffect(() => {
+    const seq = ++searchSeq.current;
     const t = setTimeout(() => {
-      api.listDiseases(search || undefined).then((r) => setDiseases(r.items)).catch(() => setDiseases([]));
+      api
+        .listDiseases(search || undefined)
+        .then((r) => {
+          // Drop stale responses so older searches can't overwrite newer ones.
+          if (seq === searchSeq.current) setDiseases(r.items);
+        })
+        .catch(() => {
+          if (seq === searchSeq.current) setDiseases([]);
+        });
     }, 300);
     return () => clearTimeout(t);
   }, [search]);
@@ -51,7 +87,7 @@ export default function SymptomsScreen() {
         cough,
         fatigue,
         difficulty_breathing: difficultyBreathing,
-        age: parseInt(age, 10) || 0,
+        age: Math.min(120, Math.max(0, parseInt(age, 10) || 0)),
         gender,
         blood_pressure: bloodPressure,
         cholesterol_level: cholesterol,
@@ -60,7 +96,7 @@ export default function SymptomsScreen() {
       setResults(res.predictions);
       setConfidenceLevel(res.confidence_level);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Prediction failed");
+      setError(friendlyErrorMessage(e, "Prediction failed. Please try again."));
     } finally {
       setLoading(false);
     }
@@ -93,6 +129,36 @@ export default function SymptomsScreen() {
         ))}
       </View>
 
+      <Text style={styles.label}>Blood Pressure</Text>
+      <View style={styles.row}>
+        {(["normal", "high", "low"] as const).map((bp) => (
+          <Pressable
+            key={bp}
+            style={[styles.chip, bloodPressure === bp && styles.chipActive]}
+            onPress={() => setBloodPressure(bp)}
+          >
+            <Text style={bloodPressure === bp ? styles.chipTextActive : styles.chipText}>
+              {bp.charAt(0).toUpperCase() + bp.slice(1)}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <Text style={styles.label}>Cholesterol Level</Text>
+      <View style={styles.row}>
+        {(["normal", "high"] as const).map((c) => (
+          <Pressable
+            key={c}
+            style={[styles.chip, cholesterol === c && styles.chipActive]}
+            onPress={() => setCholesterol(c)}
+          >
+            <Text style={cholesterol === c ? styles.chipTextActive : styles.chipText}>
+              {c.charAt(0).toUpperCase() + c.slice(1)}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
       <Pressable style={styles.advancedToggle} onPress={() => setAdvancedOpen(!advancedOpen)}>
         <Text style={styles.advancedToggleText}>
           Advanced symptoms ({advancedCount} selected) {advancedOpen ? "−" : "+"}
@@ -106,14 +172,16 @@ export default function SymptomsScreen() {
             value={symptomSearch}
             onChangeText={setSymptomSearch}
           />
-          {filteredAdvanced.map((key) => (
-            <Row
-              key={key}
-              label={formatSymptomLabel(key)}
-              value={!!advancedSymptoms[key]}
-              onChange={(v) => setAdvancedSymptoms((prev) => ({ ...prev, [key]: v }))}
-            />
-          ))}
+          <ScrollView style={styles.advancedList} nestedScrollEnabled>
+            {filteredAdvanced.map((key) => (
+              <Row
+                key={key}
+                label={humanizeSymptom(key)}
+                value={!!advancedSymptoms[key]}
+                onChange={(v) => setAdvancedSymptoms((prev) => ({ ...prev, [key]: v }))}
+              />
+            ))}
+          </ScrollView>
         </View>
       )}
 
@@ -227,8 +295,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#eee",
-    maxHeight: 280,
   },
+  advancedList: { maxHeight: 280, marginTop: 4 },
   button: {
     backgroundColor: theme.primary,
     padding: 16,

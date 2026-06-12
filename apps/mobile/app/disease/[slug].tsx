@@ -1,23 +1,62 @@
-"use client";
-
 import { useEffect, useState } from "react";
 import { useLocalSearchParams, Link } from "expo-router";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from "react-native";
-import { DiseaseSummary, theme } from "@curedesk/shared";
+import {
+  DiseaseSummary,
+  friendlyErrorMessage,
+  humanizeSymptom,
+  isNotFoundError,
+  theme,
+} from "@curedesk/shared";
 import { api } from "../../lib/api";
 
 export default function DiseaseDetailScreen() {
-  const { slug } = useLocalSearchParams<{ slug: string }>();
+  const params = useLocalSearchParams<{ slug: string | string[] }>();
+  const slug = Array.isArray(params.slug) ? params.slug[0] : params.slug;
   const [disease, setDisease] = useState<DiseaseSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
+    // Reset so navigating between diseases never shows stale content.
+    setDisease(null);
+    setError(null);
+    setNotFound(false);
+    let cancelled = false;
     api
       .getDisease(slug)
-      .then(setDisease)
-      .catch((e) => setError(e instanceof Error ? e.message : "Not found"));
+      .then((d) => {
+        if (!cancelled) setDisease(d);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        if (isNotFoundError(e)) {
+          setNotFound(true);
+        } else {
+          setError(friendlyErrorMessage(e, "Could not load this disease."));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [slug]);
+
+  if (notFound) {
+    const name = humanizeSymptom(decodeURIComponent(slug ?? "").replace(/-/g, " "));
+    return (
+      <View style={[styles.container, styles.content]}>
+        <Text style={styles.title}>{name || "Disease"}</Text>
+        <Text style={styles.body}>
+          We don&apos;t have a detailed page for this condition yet. Please consult a qualified
+          healthcare professional for more information.
+        </Text>
+        <Link href="/(tabs)/symptoms" asChild>
+          <Pressable><Text style={styles.link}>← Back to symptoms</Text></Pressable>
+        </Link>
+      </View>
+    );
+  }
 
   if (error) {
     return (

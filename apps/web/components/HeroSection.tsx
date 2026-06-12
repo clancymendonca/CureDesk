@@ -7,7 +7,7 @@ export default function HeroSection() {
       <div className="mx-auto lg:max-w-7xl w-full px-5 sm:px-10 md:px-12 lg:px-5 grid lg:grid-cols-2 lg:items-center gap-10">
         <div className="flex flex-col space-y-8 sm:space-y-10 lg:items-center text-center lg:text-left max-w-2xl md:max-w-3xl mx-auto">
           <h1 className="font-semibold leading-tight text-teal-950 dark:text-white text-4xl sm:text-5xl lg:text-6xl">
-            Revolutionzing Telehealth
+            Revolutionizing Telehealth
             <span className="text-transparent bg-clip-text bg-gradient-to-tr from-blue-600 to-violet-600">
               {" "}
               Services

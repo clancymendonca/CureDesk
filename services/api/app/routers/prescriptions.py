@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Header, HTTPException, Request, UploadFile
@@ -11,9 +12,18 @@ from app.limiter import limiter
 from app.ocr.pipeline import extract_text, lookup_drugs
 from app.schemas import PrescriptionScanResponse
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/v1/prescriptions", tags=["prescriptions"])
 
-ALLOWED_TYPES = {"image/jpeg", "image/png", "image/jpg"}
+JPEG_MAGIC = b"\xff\xd8\xff"
+PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+
+
+def _is_supported_image(data: bytes) -> bool:
+    """Validate by magic bytes; client Content-Type headers can't be trusted
+    (React Native blobs often arrive as application/octet-stream)."""
+    return data.startswith(JPEG_MAGIC) or data.startswith(PNG_MAGIC)
 
 
 @router.post("/scan", response_model=PrescriptionScanResponse)
@@ -24,7 +34,8 @@ async def scan_prescription(
     db: Session = Depends(get_db),
     authorization: Optional[str] = Header(default=None),
 ):
-    if file.content_type not in ALLOWED_TYPES:
+    data = await file.read()
+    if not _is_supported_image(data):
         raise HTTPException(
             status_code=400,
             detail={
@@ -35,7 +46,6 @@ async def scan_prescription(
             },
         )
 
-    data = await file.read()
     if len(data) > settings.max_upload_bytes:
         raise HTTPException(
             status_code=400,
@@ -64,13 +74,15 @@ async def scan_prescription(
                 }
             },
         )
-    except Exception as e:
+    except Exception:
+        # Log full details server-side; don't leak internals to clients.
+        logger.exception("OCR processing failed")
         raise HTTPException(
             status_code=422,
             detail={
                 "error": {
                     "code": "OCR_FAILED",
-                    "message": f"Could not process image: {e}",
+                    "message": "Could not process image. Please try a clearer photo.",
                 }
             },
         )

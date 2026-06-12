@@ -3,7 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { DiseaseSummary } from "@curedesk/shared";
+import {
+  DiseaseSummary,
+  friendlyErrorMessage,
+  humanizeSymptom,
+  isNotFoundError,
+} from "@curedesk/shared";
 import { api } from "@/lib/api";
 import PageLayout from "@/components/PageLayout";
 
@@ -11,14 +16,38 @@ export default function DiseaseDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const [disease, setDisease] = useState<DiseaseSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
     api
       .getDisease(slug)
       .then(setDisease)
-      .catch((e) => setError(e instanceof Error ? e.message : "Not found"));
+      .catch((e) => {
+        if (isNotFoundError(e)) {
+          setNotFound(true);
+        } else {
+          setError(friendlyErrorMessage(e, "Could not load this disease."));
+        }
+      });
   }, [slug]);
+
+  if (notFound) {
+    const name = humanizeSymptom(decodeURIComponent(slug ?? "").replace(/-/g, " "));
+    return (
+      <PageLayout title={name || "Disease"}>
+        <div className="page-card space-y-4">
+          <p className="text-16-medium">
+            We don&apos;t have a detailed page for {name || "this condition"} yet. Please consult a
+            qualified healthcare professional for more information.
+          </p>
+          <Link href="/symptom-analysis" className="text-primary inline-block hover:underline">
+            ← Back to symptoms
+          </Link>
+        </div>
+      </PageLayout>
+    );
+  }
 
   if (error) {
     return (

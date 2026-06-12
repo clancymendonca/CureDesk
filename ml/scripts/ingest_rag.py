@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "services" / "api"))
 
 from app.db.models import KnowledgeChunk, SessionLocal
+from app.config import settings as api_settings
 
 MEDQUAD = ROOT / "ml" / "data" / "rag" / "medquad" / "train.csv"
 LAVITA_DIR = ROOT / "ml" / "data" / "rag" / "medical_qa_lavita"
@@ -57,6 +58,39 @@ def _ingest_csv(
     return added
 
 
+def embed_missing_chunks(db, *, batch_size: int = 128) -> int:
+    """Compute embeddings for chunks that don't have one yet.
+
+    Skipped gracefully when sentence-transformers is not installed.
+    """
+    from app.chat.embeddings import embed_texts, vector_to_bytes
+
+    model_name = api_settings.embedding_model
+    embedded = 0
+    while True:
+        batch = (
+            db.query(KnowledgeChunk)
+            .filter(KnowledgeChunk.embedding.is_(None))
+            .limit(batch_size)
+            .all()
+        )
+        if not batch:
+            break
+        texts = [f"{c.question}\n{c.answer[:500]}" for c in batch]
+        vectors = embed_texts(texts)
+        if vectors is None:
+            print("sentence-transformers unavailable; skipping embeddings (keyword RAG only)")
+            return embedded
+        for chunk, vec in zip(batch, vectors):
+            chunk.embedding = vector_to_bytes(vec)
+            chunk.embedding_model = model_name
+        db.commit()
+        embedded += len(batch)
+        if embedded % 1024 < batch_size:
+            print(f"Embedded {embedded} chunks...")
+    return embedded
+
+
 def main() -> None:
     from app.db.migrate import run_migrations
 
@@ -79,6 +113,8 @@ def main() -> None:
             print(f"Ingested {added} from {name}")
             total += added
         print(f"Total new knowledge chunks: {total}")
+        embedded = embed_missing_chunks(db)
+        print(f"Embedded {embedded} chunks for semantic RAG")
     finally:
         db.close()
 

@@ -1,3 +1,5 @@
+import logging
+import threading
 from contextlib import asynccontextmanager
 
 import sentry_sdk
@@ -17,10 +19,38 @@ from app.limiter import limiter
 from app.ml import symptoms as ml
 from app.routers import chat, diseases, prescriptions, profile, symptoms
 
+logger = logging.getLogger(__name__)
+
+
+def _warmup_worker() -> None:
+    """Pre-load heavy models in the background so first requests are fast."""
+    try:
+        from app.ocr.pipeline import warm_up as ocr_warm_up
+
+        ocr_warm_up()
+    except Exception as exc:
+        logger.warning("OCR warm-up failed: %s", exc)
+    try:
+        from app.chat import embeddings
+        from app.db.models import SessionLocal
+
+        db = SessionLocal()
+        try:
+            # Only load the embedding model if embedded chunks exist.
+            if embeddings.load_index(db):
+                embeddings.get_embedding_model()
+        finally:
+            db.close()
+    except Exception as exc:
+        logger.warning("Embedding warm-up failed: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     run_migrations()
     ml.load_artifacts()
+    if settings.warmup_enabled:
+        threading.Thread(target=_warmup_worker, name="model-warmup", daemon=True).start()
     yield
 
 

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { MessageSquare } from "lucide-react";
-import { MEDICAL_DISCLAIMER } from "@curedesk/shared";
+import { MEDICAL_DISCLAIMER, friendlyErrorMessage } from "@curedesk/shared";
 import { api } from "@/lib/api";
 import Ping from "./Ping";
 
@@ -31,8 +31,14 @@ export default function Chatbot() {
     try {
       const res = await api.chat({ message: userMsg, history: messages });
       setMessages([...history, { role: "assistant", content: res.reply }]);
-    } catch {
-      setMessages([...history, { role: "assistant", content: "Error generating response." }]);
+    } catch (err) {
+      setMessages([
+        ...history,
+        {
+          role: "assistant",
+          content: friendlyErrorMessage(err, "I couldn't generate a response. Please try again."),
+        },
+      ]);
     } finally {
       setLoading(false);
     }

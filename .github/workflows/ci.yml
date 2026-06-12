@@ -9,27 +9,13 @@ on:
 jobs:
   api:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: curedesk
-          POSTGRES_PASSWORD: curedesk
-          POSTGRES_DB: curedesk
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Install API deps
-        run: pip install -r services/api/requirements.txt
+        run: pip install -r services/api/requirements-dev.txt
       - name: Download ML data
         env:
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
@@ -103,6 +89,19 @@ jobs:
           node-version: "20"
           cache: pnpm
       - name: Install
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
       - name: Typecheck
         run: pnpm typecheck
+      - name: Lint
+        run: pnpm lint
+      - name: Build web
+        env:
+          # Placeholder values so Firebase client init doesn't fail during prerender.
+          NEXT_PUBLIC_FIREBASE_API_KEY: ci-placeholder
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ci-placeholder.firebaseapp.com
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ci-placeholder
+          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ci-placeholder.appspot.com
+          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "0"
+          NEXT_PUBLIC_FIREBASE_APP_ID: ci-placeholder
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+        run: pnpm build --filter=@curedesk/web

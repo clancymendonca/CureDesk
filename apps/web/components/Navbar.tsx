@@ -2,11 +2,21 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { signOut } from "@/lib/firebase";
 
 export default function Navbar() {
-  const user = useAuth();
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } finally {
+      router.push("/");
+    }
+  };
 
   return (
     <header className="px-5 py-3 bg-cyan-500 shadow-sm font-work-sans">
@@ -31,11 +41,11 @@ export default function Navbar() {
           />
         </Link>
         <div className="flex items-center gap-5 text-black">
-          {user ? (
+          {loading ? null : user ? (
             <>
               <button
                 type="button"
-                onClick={() => signOut()}
+                onClick={handleSignOut}
                 className="relative flex justify-center px-6 py-3 before:absolute before:inset-0 before:rounded-lg before:transition before:bg-gray-100 text-indigo-600 hover:before:scale-105"
               >
                 <span className="relative">LogOut</span>
